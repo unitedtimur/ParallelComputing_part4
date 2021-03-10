@@ -14,14 +14,14 @@ public:
 
     ~ThreadSafePrint() noexcept
     {
-        std::lock_guard<std::mutex> guard(_mutexPrint);
+        std::lock_guard<std::mutex> guard(m_mutexPrint);
         std::cout << this->str();
     }
 
 private:
-    static std::mutex _mutexPrint;
+    static std::mutex m_mutexPrint;
 };
 
-std::mutex ThreadSafePrint::_mutexPrint {};
+std::mutex ThreadSafePrint::m_mutexPrint {};
 
 #endif // THREADSAFEPRINT_H

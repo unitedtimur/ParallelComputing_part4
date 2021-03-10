@@ -1,85 +1,52 @@
 #include <iostream>
 #include <vector>
 #include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <ctime>
 #include <random>
-#include <string>
-#include <atomic>
-#include "threadSafePrint.h"
 
-class barrier
-{
-    mutable size_t _threadsCount;
-    size_t _threadsWaiting;
-    size_t _threadsReleasing;
-    std::condition_variable _cv;
-    std::mutex _mutex;
+#include "threadsafeprint.h"
+#include "threadbarrier.h"
 
-public:
-    barrier(const size_t &threadsAmount) :
-        _threadsCount(threadsAmount),
-        _threadsWaiting(0),
-        _threadsReleasing(0)
-    {}
+std::default_random_engine DRE(std::time(nullptr));
+std::uniform_int_distribution<> UID(0, 1000);
 
-    void wait()
-    {
-        while (_threadsReleasing != 0);
-
-        std::unique_lock<std::mutex> lock(_mutex);
-
-        if (++_threadsWaiting >= _threadsCount)
-        {
-            _threadsReleasing = _threadsCount - 1;
-            _threadsWaiting = 0;
-            _cv.notify_all();
-        }
-        else
-        {
-            _cv.wait(lock, [this]() { return _threadsWaiting == 0; });
-            --_threadsReleasing;
-        }
-    }
-};
-
+auto task() -> void;
 
 int main()
 {
-    std::default_random_engine dre(std::time(nullptr));
-    std::uniform_int_distribution<> uid(100, 1000);
-    uint32_t thrAmount;
+    size_t threadCount;
 
-    std::cout << "Enter threads amount: ";
-    std::cin >> thrAmount;
+    sPrint << "Enter count of threads: ";
+    std::cin >> threadCount;
 
-    barrier br(thrAmount);
+    ThreadBarrier br(threadCount);
     std::vector<std::thread> threads;
-    std::atomic_uint32_t released(0);
+    threads.reserve(threadCount);
 
-    for (size_t i = 0; i < thrAmount; ++i)
-    {
-        threads.emplace_back([&]()
+    for (size_t i = 0; i < threadCount; ++i)
+        threads.emplace_back([&]() {
+            for (int32_t j = 0; j < 4; ++j)
             {
-                for (int32_t j = 0; j < 4; ++j)
-                {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(uid(dre)));
-                    br.wait();
-                    ThreadSafePrint{} << std::this_thread::get_id() << " released\n";
-                    if (++released % thrAmount == 0)
-                        sPrint << std::endl;
-                }
-            });
-    }
+                task();
+                br.wait();
+
+                sPrint << std::this_thread::get_id() << " has been ended..." << std::endl;
+            }
+        });
 
     for (auto& thr : threads)
-        if (thr.joinable())
-        {
-            auto id = thr.get_id();
+        if (thr.joinable()) {
+            const std::thread::id id = thr.get_id();
+
             thr.join();
-            sPrint << "id = " << id << " joined" << std::endl;
+
+            sPrint << id << " has been joined..." << std::endl;
         }
 
     return 0;
+}
+
+auto task() -> void
+{
+    // Типо задача тут
+    std::this_thread::sleep_for(std::chrono::milliseconds(UID(DRE)));
 }
